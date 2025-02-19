@@ -11,40 +11,42 @@
 </head>
 <body>
   <div id="info">Point your Quest 3 at your surroundings</div>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/webxr/VRButton.js"></script>
-  <script>
+  <!-- Use type="module" to allow import/export syntax -->
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js';
+    import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/webxr/VRButton.js';
+    
     let scene, camera, renderer, xrSession;
     const meshMap = new Map(); // XRMesh -> { threeMesh, sprite }
-
+    
     init();
     async function init() {
       scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 20);
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
       
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
-
+    
       // Add light for visualization.
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
-
-      // Button to enter immersive AR session.
+    
+      // Add the VRButton to enter immersive AR session.
       document.body.appendChild(VRButton.createButton(renderer, {
-        requiredFeatures: ['immersive-ar', 'mesh-detection'], // you can add 'plane-detection' if needed
+        requiredFeatures: ['immersive-ar', 'mesh-detection','plane-detection'], // Optionally add ''
         optionalFeatures: ['local-floor']
       }));
-
+    
       renderer.xr.addEventListener('sessionstart', (ev) => {
         xrSession = renderer.xr.getSession();
       });
-
+    
       renderer.setAnimationLoop(render);
     }
-
+    
     // Utility function: create a sprite with text
     function createTextSprite(message) {
       const canvas = document.createElement("canvas");
@@ -64,17 +66,17 @@
       texture.needsUpdate = true;
       const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
       const sprite = new THREE.Sprite(spriteMaterial);
-      // Scale the sprite based on the canvas size (adjust as needed)
+      // Scale the sprite (adjust scale as needed)
       sprite.scale.set(0.3 * canvas.width / fontSize, 0.3, 1);
       return sprite;
     }
-
+    
     // Update or create a Three.js mesh for an XRMesh object
     function updateXRMesh(xrMesh, frame, referenceSpace) {
       // Get the pose of the mesh
       const pose = frame.getPose(xrMesh.meshSpace, referenceSpace);
       if (!pose) return;
-
+    
       let entry = meshMap.get(xrMesh);
       // If we don't have a Three.js object yet, create one
       if (!entry) {
@@ -83,25 +85,25 @@
         geometry.setAttribute('position', new THREE.BufferAttribute(xrMesh.vertices, 3));
         geometry.setIndex(new THREE.BufferAttribute(xrMesh.indices, 1));
         geometry.computeVertexNormals();
-
-        // Create a simple material; you can change it as needed
+    
+        // Create a simple material; adjust color or transparency as needed
         const material = new THREE.MeshStandardMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true });
         const threeMesh = new THREE.Mesh(geometry, material);
         scene.add(threeMesh);
-
-        // Create a sprite for the semantic label
-        // Here we assume xrMesh.semanticLabel exists; if not, default to "Unknown"
+    
+        // Create a sprite for the semantic label.
+        // Assumes xrMesh.semanticLabel exists; otherwise defaults to "Unknown"
         const labelText = xrMesh.semanticLabel || "Unknown";
         const sprite = createTextSprite(labelText);
         scene.add(sprite);
-
+    
         entry = { threeMesh, sprite, lastChanged: xrMesh.lastChangedTime || 0 };
         meshMap.set(xrMesh, entry);
       } else {
-        // If the mesh has been updated, update geometry
+        // Update geometry if the XRMesh has changed
         if (xrMesh.lastChangedTime > entry.lastChanged) {
           entry.lastChanged = xrMesh.lastChangedTime;
-          // Update positions
+          // Update vertex positions
           const posAttr = entry.threeMesh.geometry.getAttribute('position');
           posAttr.array.set(xrMesh.vertices);
           posAttr.needsUpdate = true;
@@ -110,7 +112,6 @@
           entry.threeMesh.geometry.computeVertexNormals();
           // Update sprite text if semantic label changed
           const newLabel = xrMesh.semanticLabel || "Unknown";
-          // (For simplicity, we recreate the sprite; you could update the texture in a more optimized version)
           scene.remove(entry.sprite);
           entry.sprite = createTextSprite(newLabel);
           scene.add(entry.sprite);
@@ -122,18 +123,18 @@
       entry.threeMesh.position.set(pos.x, pos.y, pos.z);
       entry.threeMesh.quaternion.set(orient.x, orient.y, orient.z, orient.w);
       
-      // Position the sprite above the mesh's center (you might compute the bounding box for a better position)
+      // Position the sprite above the mesh's center.
       const box = new THREE.Box3().setFromObject(entry.threeMesh);
       const center = new THREE.Vector3();
       box.getCenter(center);
       entry.sprite.position.copy(center);
-      entry.sprite.position.y += 0.1; // offset upward
+      entry.sprite.position.y += 0.1; // slight upward offset
     }
-
+    
     function render(timestamp, frame) {
       if (frame && xrSession) {
         const referenceSpace = renderer.xr.getReferenceSpace();
-        // Check if the frame has detectedMeshes (this is specific to devices that support mesh detection)
+        // Process detected meshes if available (only supported on devices with mesh detection)
         const detectedMeshes = frame.detectedMeshes;
         if (detectedMeshes) {
           detectedMeshes.forEach(xrMesh => {
