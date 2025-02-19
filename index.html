@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <!-- Origin trial meta tag required for Quest 3 passthrough -->
-    <meta http-equiv="origin-trial" content="Ahfj+MLeL6bh+LNmpnSdepftxoDHHwjUG2KWZ4jjCb1WoZxtBlzF3cDHuJNVqnhr3HXJwQ+kLaw57NO15S0mRwwAAABkeyJvcmlnaW4iOiJodHRwczovL2ltbWVyc2l2ZS13ZWIuZ2l0aHViLmlvOjQ0MyIsImZlYXR1cmUiOiJXZWJYUlBsYW5lRGV0ZWN0aW9uIiwiZXhwaXJ5IjoxNjI5ODQ5NTk5fQ==" />
+    <meta http-equiv="origin-trial" content="Ahfj+MLeL6bh+LNmpnSdepftxoDHHwjUG2KWZ4jjCb1WoZxtBlzF3cDHuJNVqnhr3HXJwQ+kLaw57NO15S0mRwwAAABkeyJvcmlnaW4iOiJodHRwczovL2ltbWVyc2l2ZS13ZWIuZ2l0aHViLmlvOjQ0MyIsImZlYXR1cmUiOiJXZWJYUlBsYW5lRGV0ZWN0aW9uIiwiZXhwaXJ5IjoxNjI5ODQ5NTk5fQ==">
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Semantic Mesh Demo with AR Passthrough</title>
+    <title>Mesh Outlines & Semantic Labels Prototype</title>
     <style>
       body { margin: 0; overflow: hidden; background: none; }
       canvas { display: block; background: none; }
@@ -28,7 +28,6 @@
         z-index: 100;
       }
     </style>
-    <!-- Importmap for three.js -->
     <script type="importmap">
       {
         "imports": {
@@ -39,142 +38,152 @@
   </head>
   <body>
     <div id="info">
-      Semantic Mesh Demo<br>
-      Each detected mesh will display its semantic label.
+      Mesh Outlines & Semantic Labels<br>
+      Room dimensions will be logged in the console.
     </div>
     <button id="ar-button">Enter AR</button>
     
     <script type="module">
-      import * as THREE from "https://unpkg.com/three@0.153.0/build/three.module.js";
-      import { RealityAccelerator } from "https://unpkg.com/ratk@0.3.0";
-      
-      let scene, camera, renderer, xrSession, ratk;
-      // Map to keep track of added meshes & their label sprites
-      const meshMap = new Map(); // key: rmesh (from RATK), value: { mesh, sprite }
+      import * as THREE from 'https://unpkg.com/three@0.153.0/build/three.module.js';
+      import { RealityAccelerator } from 'https://unpkg.com/ratk@0.3.0';
 
-      // Set up Three.js scene
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 1.6, 0);
+      if (!navigator.xr) {
+        console.error("WebXR not available on this device/browser.");
+        document.getElementById('info').innerText = "WebXR not available on this device/browser.";
+      }
       
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      // Create the renderer with alpha enabled and a fully transparent clear color.
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      // Clear to transparent so passthrough shows through
-      renderer.setClearColor(0x000000, 0);
       renderer.xr.enabled = true;
+      renderer.setClearColor(0x000000, 0); // fully transparent background
       document.body.appendChild(renderer.domElement);
       
-      // Add a hemisphere light for basic illumination.
-      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      scene.add(light);
-      
-      // AR start button
-      const arButton = document.getElementById("ar-button");
-      arButton.addEventListener("click", () => {
+      const arButton = document.getElementById('ar-button');
+      arButton.addEventListener('click', () => {
         console.log("AR button clicked.");
         const sessionInit = {
-          requiredFeatures: ['hit-test','plane-detection','mesh-detection','anchors'],
-          optionalFeatures: ['local-floor']
+          requiredFeatures: ['hit-test', 'plane-detection', 'mesh-detection', 'anchors']
         };
-        navigator.xr.requestSession("immersive-ar", sessionInit)
-          .then((session) => {
+        navigator.xr.requestSession('immersive-ar', sessionInit)
+          .then(session => {
             console.log("AR session started.");
             renderer.xr.setReferenceSpaceType('local');
             renderer.xr.setSession(session);
-            xrSession = session;
-            // Initialize RATK to access room meshes.
-            ratk = new RealityAccelerator(renderer.xr);
-            // Optionally, add ratk.root to the scene if you want a group container.
-            scene.add(ratk.root);
           })
-          .catch((err) => {
+          .catch(err => {
             console.error("Failed to start AR session", err);
           });
       });
       
-      // Utility: create a sprite for text labels.
-      function createTextSprite(message) {
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        const fontSize = 48;
-        context.font = fontSize + "px Arial";
-        const metrics = context.measureText(message);
-        const textWidth = metrics.width;
-        canvas.width = textWidth;
-        canvas.height = fontSize * 1.2;
-        // Redraw text with proper scaling.
-        context.font = fontSize + "px Arial";
-        context.fillStyle = "white";
-        context.fillText(message, 0, fontSize);
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
-        const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(0.3 * canvas.width/fontSize, 0.3, 1);
-        return sprite;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 1.6, 0); // Typical eye level
+      scene.add(camera);
+      
+      // Initialize RATK and add its root to the scene.
+      const ratk = new RealityAccelerator(renderer.xr);
+      scene.add(ratk.root);
+      
+      // Helper function to update a mesh so that it is rendered only as an outline with a semantic label.
+      function updateObjectMaterial(object, semanticLabel) {
+        if (object && object.geometry) {
+          // Optionally default the label if missing.
+          const labelText = semanticLabel ? semanticLabel : "unknown";
+
+          // Hide the original surface.
+          object.material = new THREE.MeshBasicMaterial({ visible: false });
+          
+          // Remove any existing outline or label children.
+          const oldOutline = object.getObjectByName("outline");
+          if (oldOutline) object.remove(oldOutline);
+          const oldLabel = object.getObjectByName("label");
+          if (oldLabel) object.remove(oldLabel);
+          
+          // Create an outline using EdgesGeometry.
+          const edges = new THREE.EdgesGeometry(object.geometry);
+          const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+          const outline = new THREE.LineSegments(edges, lineMaterial);
+          outline.name = "outline";
+          object.add(outline);
+          
+          // Create a canvas-based sprite for the semantic label.
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          context.font = "48px Arial";
+          // Set canvas size based on measured text.
+          const textWidth = context.measureText(labelText).width;
+          canvas.width = textWidth;
+          canvas.height = 48;
+          // Redraw text with the proper size.
+          context.font = "48px Arial";
+          context.fillStyle = "red";
+          context.fillText(labelText, 0, 48);
+          
+          const texture = new THREE.CanvasTexture(canvas);
+          const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
+          const sprite = new THREE.Sprite(spriteMaterial);
+          sprite.name = "label";
+          // Adjust the sprite scale (you may tweak these numbers to suit your scene).
+          sprite.scale.set(0.5 * canvas.width / 100, 0.5 * canvas.height / 100, 1);
+          
+          // Position the label above the top of the object.
+          object.geometry.computeBoundingBox();
+          const bbox = object.geometry.boundingBox;
+          const labelY = bbox ? bbox.max.y : 1;
+          sprite.position.set(0, labelY, 0);
+          object.add(sprite);
+        }
       }
       
-      // RATK event handlers.
-      // When a new mesh is detected, add an overlay mesh and label.
-      ratk && (ratk.onMeshAdded = (rmesh) => {
+      // Update plane materials when added or updated.
+      ratk.onPlaneAdded = (plane) => {
+        console.log("New plane detected:", plane);
+        if (plane.planeMesh) {
+          updateObjectMaterial(plane.planeMesh, plane.semanticLabel);
+        }
+      };
+      
+      ratk.onPlaneUpdated = (plane) => {
+        console.log("Plane updated:", plane);
+        if (plane.planeMesh) {
+          updateObjectMaterial(plane.planeMesh, plane.semanticLabel);
+        }
+      };
+      
+      // For meshes detected by RATK, update material to show outlines and semantic labels.
+      ratk.onMeshAdded = (rmesh) => {
         console.log("New mesh detected:", rmesh);
-        // Use rmesh.meshMesh if available. (This is the THREE.Object3D created by RATK.)
         if (rmesh.meshMesh) {
-          // Clone the meshMesh for our own overlay (or simply use it directly)
-          const overlayMesh = rmesh.meshMesh.clone();
-          // Make it semi-transparent.
-          overlayMesh.material = overlayMesh.material.clone();
-          overlayMesh.material.opacity = 0.5;
-          overlayMesh.material.transparent = true;
-          scene.add(overlayMesh);
-          
-          // Assume a semantic label is provided in rmesh.semanticLabel.
-          // (If not, you can simulate a label based on some criteria.)
-          const label = rmesh.semanticLabel || "Unknown";
-          const sprite = createTextSprite(label);
-          console.log(label);
-          scene.add(sprite);
-          
-          // Save in our map.
-          meshMap.set(rmesh, { mesh: overlayMesh, sprite });
+          updateObjectMaterial(rmesh.meshMesh, rmesh.semanticLabel);
         }
-      });
+        computeRoomBoundary();
+      };
       
-      // When a mesh is updated, update its overlay and label.
-      ratk && (ratk.onMeshUpdated = (rmesh) => {
-        console.log("Mesh updated:", rmesh);
-        const entry = meshMap.get(rmesh);
-        if (entry && rmesh.meshMesh) {
-          // Update overlay by replacing geometry (a full update implementation would modify attributes)
-          entry.mesh.geometry.dispose();
-          entry.mesh.geometry = rmesh.meshMesh.geometry.clone();
-          // Optionally update the label if semanticLabel changed.
-          const newLabel = rmesh.semanticLabel || "Unknown";
-          scene.remove(entry.sprite);
-          entry.sprite = createTextSprite(newLabel);
-          scene.add(entry.sprite);
-          meshMap.set(rmesh, entry);
-        }
-      });
+      // Log room dimensions.
+      function computeRoomBoundary() {
+        const overallBox = new THREE.Box3();
+        ratk.meshes.forEach(rmesh => {
+          if (rmesh.meshMesh && rmesh.meshMesh.geometry) {
+            rmesh.meshMesh.geometry.computeBoundingBox();
+            const box = new THREE.Box3().setFromObject(rmesh.meshMesh);
+            overallBox.union(box);
+          }
+        });
+        const size = new THREE.Vector3();
+        overallBox.getSize(size);
+        console.log(`Room dimensions (meters): width: ${size.x.toFixed(2)}, height: ${size.y.toFixed(2)}, depth: ${size.z.toFixed(2)}`);
+        return overallBox;
+      }
       
-      // In the render loop, update RATK.
-      renderer.setAnimationLoop(() => {
-        if (ratk) {
-          ratk.update();
-          // For each tracked mesh, update the label position.
-          meshMap.forEach((entry, rmesh) => {
-            // Position the sprite at the bounding box center of the overlay mesh.
-            const box = new THREE.Box3().setFromObject(entry.mesh);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            entry.sprite.position.copy(center);
-            entry.sprite.position.y += 0.1; // slight upward offset
-          });
-        }
+      // Render loop.
+      function render() {
+        ratk.update();
         renderer.render(scene, camera);
-      });
+      }
+      renderer.setAnimationLoop(render);
       
-      window.addEventListener("resize", () => {
+      window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
