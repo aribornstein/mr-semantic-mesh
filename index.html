@@ -24,19 +24,23 @@
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
       
+      // Create renderer with transparency enabled
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
+      // Set clear color to transparent so passthrough is visible
+      renderer.setClearColor(0x000000, 0);
       renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
     
-      // Add light for visualization.
+      // Add a light for visualization
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
     
-      // Add the VRButton to enter immersive AR session.
+      // Add the VRButton. Even though it’s named VRButton, when requesting immersive-ar with
+      // requiredFeatures it will launch an AR (passthrough) session.
       document.body.appendChild(VRButton.createButton(renderer, {
-        requiredFeatures: ['immersive-ar', 'mesh-detection','plane-detection'], // Optionally add ''
+        requiredFeatures: ['immersive-ar', 'mesh-detection', 'plane-detection'],
         optionalFeatures: ['local-floor']
       }));
     
